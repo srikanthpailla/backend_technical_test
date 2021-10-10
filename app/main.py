@@ -1,11 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, json, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+from sqlalchemy.exc import IntegrityError
 
 import os
 
 # initialize app
 app = Flask(__name__)
+
+PREFIX = "/v1"
 
 # Configure database
 basedir = os.path.dirname(__file__)
@@ -41,7 +44,7 @@ product_schema = ProductSchema()
 products_schema = ProductSchema(many=True)
 
 # add product
-@app.route('/product', methods=['POST'])
+@app.route(f'{PREFIX}/product', methods=['POST'])
 def add_product():
     product_code = request.json['product_code']
     name = request.json['name']
@@ -49,12 +52,16 @@ def add_product():
 
     new_product = Product(product_code, name, price)
     db.session.add(new_product)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError as err:
+        field = err._message().split('.')[-1]
+        abort(409, description=f"Product with same {field} already exists.")
 
     return product_schema.jsonify(new_product)
 
 # list all products
-@app.route('/products', methods=['GET'])
+@app.route(f'{PREFIX}/products', methods=['GET'])
 def get_all_products():
     all_products = Product.query.all()
     all_products = products_schema.dump(all_products)
@@ -62,15 +69,19 @@ def get_all_products():
     return jsonify(all_products)
 
 # list single product
-@app.route('/product/<product_code>', methods=['GET'])
+@app.route(f'{PREFIX}/product/<product_code>', methods=['GET'])
 def get_single_product(product_code):
     product = Product.query.get(product_code)
+    if not product:
+        abort(404, description=f"Product {product_code} not found")
     return product_schema.jsonify(product)
 
 # update a product
-@app.route('/product/<product_code>', methods=['PUT'])
+@app.route(f'{PREFIX}/product/<product_code>', methods=['PUT'])
 def update_product(product_code):
     product = Product.query.get(product_code)
+    if not product:
+        abort(404, description=f"Product {product_code} not found to update")
 
     if request.json.get('product_code'):
         product.product_code = request.json['product_code']
@@ -84,13 +95,32 @@ def update_product(product_code):
     return product_schema.jsonify(product)
 
 # delete a product
-@app.route('/product/<product_code>', methods=['DELETE'])
+@app.route(f'{PREFIX}/product/<product_code>', methods=['DELETE'])
 def delete_product(product_code):
     product = Product.query.get(product_code)
+    if not product:
+        abort(404, description=f"Product {product_code} not found to delete")
     db.session.delete(product)
     db.session.commit()
 
     return f"Product {product_code} deleted successfully."
+
+# Not found error
+@app.errorhandler(404)
+def handle_404(e):
+    response = e.get_response()
+    response.data = json.dumps({'message': f'{e.description}'})
+    response.content_type = "application/json"
+    return response
+
+# Conflict error
+@app.errorhandler(409)
+def handle_409(e):
+    response = e.get_response()
+    response.data = json.dumps({'message': f'{e.description}'})
+    response.content_type = "application/json"
+    return response
+
 
 # run server
 if __name__ == "__main__":
