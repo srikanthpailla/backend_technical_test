@@ -11,7 +11,7 @@ app = Flask(__name__)
 PREFIX = "/v1"
 
 # Configure database
-basedir = os.path.dirname(__file__)
+basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'db.sqlite')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -120,4 +120,5 @@ def handle_409(e):
 
 # run server
 if __name__ == "__main__":
+    db.create_all()
     app.run(host="0.0.0.0", debug=True)
