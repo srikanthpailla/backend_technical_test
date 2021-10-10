@@ -23,19 +23,18 @@ marshmallow = Marshmallow(app)
 
 # Database Model
 class Product(db.Model):
-    product_code = db.Column(db.String(10), unique=True, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(10), unique=True)
     price = db.Column(db.Float)
 
-    def __init__(self, product_code, name, price):
-        self.product_code = product_code
+    def __init__(self, name, price):
         self.name = name
         self.price = price
 
 # Serializer
 class ProductSchema(marshmallow.Schema):
     class Meta:
-        fields =('product_code', 'name', 'price')
+        fields =('id', 'name', 'price')
 
 # for single product
 product_schema = ProductSchema()
@@ -46,11 +45,10 @@ products_schema = ProductSchema(many=True)
 # add product
 @app.route(f'{PREFIX}/product', methods=['POST'])
 def add_product():
-    product_code = request.json['product_code']
     name = request.json['name']
     price = request.json['price']
 
-    new_product = Product(product_code, name, price)
+    new_product = Product(name, price)
     db.session.add(new_product)
     try:
         db.session.commit()
@@ -69,22 +67,20 @@ def get_all_products():
     return jsonify(all_products)
 
 # list single product
-@app.route(f'{PREFIX}/product/<product_code>', methods=['GET'])
-def get_single_product(product_code):
-    product = Product.query.get(product_code)
+@app.route(f'{PREFIX}/product/<id>', methods=['GET'])
+def get_single_product(id):
+    product = Product.query.get(id)
     if not product:
-        abort(404, description=f"Product {product_code} not found")
+        abort(404, description=f"Product {id} not found")
     return product_schema.jsonify(product)
 
 # update a product
-@app.route(f'{PREFIX}/product/<product_code>', methods=['PUT'])
-def update_product(product_code):
-    product = Product.query.get(product_code)
+@app.route(f'{PREFIX}/product/<id>', methods=['PUT'])
+def update_product(id):
+    product = Product.query.get(id)
     if not product:
-        abort(404, description=f"Product {product_code} not found to update")
+        abort(404, description=f"Product {id} not found to update")
 
-    if request.json.get('product_code'):
-        product.product_code = request.json['product_code']
     if request.json.get('name'):
         product.name = request.json['name']
     if request.json.get('price'):
@@ -95,15 +91,15 @@ def update_product(product_code):
     return product_schema.jsonify(product)
 
 # delete a product
-@app.route(f'{PREFIX}/product/<product_code>', methods=['DELETE'])
-def delete_product(product_code):
-    product = Product.query.get(product_code)
+@app.route(f'{PREFIX}/product/<id>', methods=['DELETE'])
+def delete_product(id):
+    product = Product.query.get(id)
     if not product:
-        abort(404, description=f"Product {product_code} not found to delete")
+        abort(404, description=f"Product {id} not found to delete")
     db.session.delete(product)
     db.session.commit()
 
-    return f"Product {product_code} deleted successfully."
+    return f"Product {id} deleted successfully."
 
 # Not found error
 @app.errorhandler(404)
